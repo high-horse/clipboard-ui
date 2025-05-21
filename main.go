@@ -5,6 +5,7 @@ import (
 	"embed"
 	"log"
 	"os"
+	"path/filepath"
 	"ui-clipboard/clip"
 
 	"github.com/wailsapp/wails/v2"
@@ -21,23 +22,36 @@ var cpBoard = make(chan os.Signal, 1)
 var exitSignal = make(chan struct{})
 
 func main() {
-	log.SetFlags(log.Ldate| log.Ltime | log.Lshortfile)
+	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
+
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		log.Fatalln("Failed to get user home directory:", err)
+	}
+
 	// Create an instance of the app structure
 	app := NewApp()
-	clipboard := clip.NewClipboardManager()
-	// clipboard.SetContext(app.ctx)
-	
-	go watchClipboard(clipboard)
-	select{
-		case <-exitSignal :
-			log.Println("Exiting due to clipboard init faliure ")
-			return 
-		default:
+	configPath := filepath.Join(homeDir, ".config", "clipboard-ui")
+	if err = os.MkdirAll(configPath, 0775); err != nil {
+		log.Fatalln("Failed to create config directory:", err)
 	}
-	
+	dbPath := filepath.Join(configPath, "clipboard_bucket.db")
+
+	clipboard, err := clip.NewClipboardManager(dbPath)
+	if err != nil {
+		log.Fatalln("Failed to initialize clipboard manager:", err)
+	}
+
+	go watchClipboard(clipboard)
+	select {
+	case <-exitSignal:
+		log.Println("Exiting due to clipboard init faliure ")
+		return
+	default:
+	}
 
 	// Create application with options
-	err := wails.Run(&options.App{
+	err = wails.Run(&options.App{
 		Title:  "ui-clipboard",
 		Width:  1024,
 		Height: 768,
@@ -49,7 +63,7 @@ func main() {
 			app.startup(ctx)
 			clipboard.SetContext(ctx)
 		},
-		Bind: []interface{}{
+		Bind: []any{
 			app,
 			clipboard,
 		},
@@ -60,12 +74,11 @@ func main() {
 	}
 }
 
-
 func watchClipboard(cBoard *clip.ClipboardManager) {
 	err := cb.Init()
 	if err != nil {
-		log.Println("error occured in ",err)
-		exitSignal <- struct{}{} 
+		log.Println("error occured in ", err)
+		exitSignal <- struct{}{}
 		return
 	}
 	log.Println("Clipboard watcher initialized.")
