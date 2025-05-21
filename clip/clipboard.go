@@ -1,89 +1,111 @@
 package clip
 
 import (
+	"context"
+	"log"
 	"sync"
 	"time"
+
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-
-type ClipboardItem struct{
-	ID int
-	Content string
+type ClipboardItem struct {
+	ID        int
+	Content   string
 	Timestamp time.Time
 }
 
 type ClipboardUIEvent struct {
 	ClipAction Action
-	Payload string
+	Payload    string
 }
 
 type ClipboardManager struct {
-	mu sync.Mutex
-	items []ClipboardItem
-	currentId int
+	mu         sync.Mutex
+	items      []ClipboardItem
+	currentId  int
 	nextItemID int
+	ctx        context.Context
 }
 
 func NewClipboardManager() *ClipboardManager {
 	return &ClipboardManager{}
 }
 
-func (c *ClipboardManager) Add (content string) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	
-	item := ClipboardItem{
-		ID: c.nextItemID,
-		Content: content,
-		Timestamp: time.Now(),
-	}
-	
-	c.nextItemID++
-	c.items = append([]ClipboardItem{item}, c.items...) // make newest first
-	c.currentId = item.ID
+func (cm *ClipboardManager) SetContext(ctx context.Context) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.ctx = ctx
 }
 
-func (c *ClipboardManager) Select(id int) bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	
-	for i, item := range c.items {
+func (cm *ClipboardManager) GetContext() context.Context {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	return cm.ctx
+}
+
+func (cm *ClipboardManager) Add(content string) {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	item := ClipboardItem{
+		ID:        cm.nextItemID,
+		Content:   content,
+		Timestamp: time.Now(),
+	}
+
+	cm.nextItemID++
+	cm.items = append([]ClipboardItem{item}, cm.items...) // make newest first
+	cm.currentId = item.ID
+	if cm.ctx != nil {
+		runtime.EventsEmit(cm.ctx, "new-content", map[string]string{
+			"content": content,
+		})
+		log.Println("event emitted 'new-content'")
+	}
+}
+
+func (cm *ClipboardManager) Select(id int) bool {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	for i, item := range cm.items {
 		if item.ID == id {
-			// c.currentId = id
+			// cm.currentId = id
 			// return true
-			c.items = append([]ClipboardItem{item}, append(c.items[:i], c.items[i+1:]...)...)
-			c.currentId = id
+			cm.items = append([]ClipboardItem{item}, append(cm.items[:i], cm.items[i+1:]...)...)
+			cm.currentId = id
 			return true
 		}
-	}	
+	}
 	return false
 }
 
-func (c *ClipboardManager) GetCurrentContext() string {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	
-	for _, item := range c.items {
-		if c.currentId == item.ID {
+func (cm *ClipboardManager) GetCurrentContext() string {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	for _, item := range cm.items {
+		if cm.currentId == item.ID {
 			return item.Content
 		}
 	}
-	
+
 	return ""
 }
 
-func (c *ClipboardManager) GetHistory() []ClipboardItem{
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	
-	return c.items
+func (cm *ClipboardManager) GetHistory() []ClipboardItem {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+
+	return cm.items
 }
 
-func (c *ClipboardManager) ClearHistory() {
-	c.mu.Lock()
-	c.mu.Unlock()
-	
-	c.items = []ClipboardItem{}
-	c.currentId = -1
-	c.nextItemID = 0
+func (cm *ClipboardManager) ClearHistory() {
+	cm.mu.Lock()
+	cm.mu.Unlock()
+
+	cm.items = []ClipboardItem{}
+	cm.currentId = -1
+	cm.nextItemID = 0
 }

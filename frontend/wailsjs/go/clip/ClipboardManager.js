@@ -10,6 +10,10 @@ export function ClearHistory() {
   return window['go']['clip']['ClipboardManager']['ClearHistory']();
 }
 
+export function GetContext() {
+  return window['go']['clip']['ClipboardManager']['GetContext']();
+}
+
 export function GetCurrentContext() {
   return window['go']['clip']['ClipboardManager']['GetCurrentContext']();
 }
@@ -20,4 +24,8 @@ export function GetHistory() {
 
 export function Select(arg1) {
   return window['go']['clip']['ClipboardManager']['Select'](arg1);
+}
+
+export function SetContext(arg1) {
+  return window['go']['clip']['ClipboardManager']['SetContext'](arg1);
 }

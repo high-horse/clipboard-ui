@@ -9,5 +9,8 @@
   "author": {
     "name": "akhilesh-dev",
     "email": "akhilesh@yajtechnologies.com"
+  },
+  "bindings": {
+    "ts": true 
   }
 }
