@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // App struct
@@ -28,4 +30,22 @@ func (a *App) Greet(name string) string {
 
 func (a *App) OnShutdown(ctx context.Context) {
 	// TODO: implement on shutdown
+}
+
+
+func (b *App) beforeClose(ctx context.Context) (prevent bool) {
+    dialog, err := runtime.MessageDialog(ctx, runtime.MessageDialogOptions{
+        Type:          runtime.QuestionDialog,
+        Title:         "Quit?",
+        Message:       "Are you sure you want to quit?",
+    })
+
+    if err != nil {
+        return false
+    }
+    return dialog != "Yes"
+}
+
+func (a *App) Hide() {
+	runtime.WindowHide(a.ctx)
 }

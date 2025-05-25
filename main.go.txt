@@ -1,0 +1,136 @@
+package main
+
+import (
+	"context"
+	"embed"
+	"log"
+	"os"
+	"path/filepath"
+	"ui-clipboard/clip"
+
+	// "fyne.io/systray"
+	// "github.com/getlantern/systray"
+	"github.com/wailsapp/wails/v2"
+	"github.com/wailsapp/wails/v2/pkg/options"
+	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	// "github.com/wailsapp/wails/v2/pkg/runtime"
+	// "github.com/wailsapp/wails/v2/pkg/menu"
+	// "github.com/wailsapp/wails/v2/pkg/tray"
+
+	cb "golang.design/x/clipboard"
+)
+
+//go:embed all:frontend/dist
+var assets embed.FS
+
+var cpBoard = make(chan os.Signal, 1)
+var exitSignal = make(chan struct{})
+
+func main() {
+	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
+
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		log.Fatalln("Failed to get user home directory:", err)
+	}
+	// go systray.Run(onReady, onExit)
+
+	// Create an instance of the app structure
+	app := NewApp()
+	configPath := filepath.Join(homeDir, ".config", "clipboard-ui")
+	if err = os.MkdirAll(configPath, 0775); err != nil {
+		log.Fatalln("Failed to create config directory:", err)
+	}
+	dbPath := filepath.Join(configPath, "clipboard_bucket.db")
+
+	clipboard, err := clip.NewClipboardManager(dbPath)
+	if err != nil {
+		log.Fatalln("Failed to initialize clipboard manager:", err)
+	}
+
+	go watchClipboard(clipboard)
+	select {
+	case <-exitSignal:
+		log.Println("Exiting due to clipboard init faliure ")
+		return
+	default:
+	}
+
+	// Create application with options
+	err = wails.Run(&options.App{
+		Title:  "ui-clipboard",
+		Width:  1024,
+		Height: 768,
+		AssetServer: &assetserver.Options{
+			Assets: assets,
+		},
+		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
+		OnStartup: func(ctx context.Context) {
+			app.startup(ctx)
+			clipboard.SetContext(ctx)
+
+			// Add tray
+			// trayIcon, _ := tray.NewTray("G-clipboard")
+			// trayIcon.SetTooltip("G-clipboard running")
+			// iconPath := filepath.Join("frontend/src/assets/images", "logo-universal.png")
+			// iconData, _ := os.ReadFile(iconPath)
+			// trayIcon.SetIcon(iconData)
+
+			// // tray Menu
+			// mQuit := menu.NewMenuItem("Quit", nil)
+			// mQuit.OnClick(func(_ *menu.CallbackData) {
+			// 	runtime.Quit(ctx)
+			// })
+			// trayMenu := menu.NewMenu()
+			// trayMenu.Append(mQuit)
+			// trayIcon.SetMenu(trayMenu)
+		},
+		OnBeforeClose: app.beforeClose,
+		Bind: []any{
+			app,
+			clipboard,
+		},
+	})
+
+	if err != nil {
+		println("Error:", err.Error())
+	}
+}
+
+func watchClipboard(cBoard *clip.ClipboardManager) {
+	err := cb.Init()
+	if err != nil {
+		log.Println("error occured in ", err)
+		exitSignal <- struct{}{}
+		return
+	}
+	log.Println("Clipboard watcher initialized.")
+	ch := cb.Watch(context.Background(), cb.FmtText)
+	for data := range ch {
+		log.Println("new content detected ", string(data))
+		cBoard.Add(string(data))
+	}
+}
+
+// func onReady() {
+// 	iconPath := filepath.Join("frontend/src/assets/images", "logo-universal.png")
+// 	iconData, err := os.ReadFile(iconPath)
+// 	if err == nil {
+// 		systray.SetIcon(iconData)
+// 	}
+
+// 	systray.SetTitle("G-clipboard")
+// 	systray.SetTooltip("g-clipboard running")
+
+// 	mQuit := systray.AddMenuItem("Quit", "quit app")
+// 	go func() {
+// 		<- mQuit.ClickedCh
+// 		systray.Quit()
+// 	}()
+
+// }
+
+// func onExit() {
+//     exitSignal <- struct{}{}
+//     return
+// }

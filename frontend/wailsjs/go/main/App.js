@@ -6,6 +6,10 @@ export function Greet(arg1) {
   return window['go']['main']['App']['Greet'](arg1);
 }
 
+export function Hide() {
+  return window['go']['main']['App']['Hide']();
+}
+
 export function OnShutdown(arg1) {
   return window['go']['main']['App']['OnShutdown'](arg1);
 }

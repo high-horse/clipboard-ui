@@ -11,15 +11,16 @@ import (
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 
+	// hook "github.com/moutend/go-hook"
+	// hook "github.com/robotn/gohook"
 	cb "golang.design/x/clipboard"
+	"golang.design/x/hotkey"
 )
 
 //go:embed all:frontend/dist
 var assets embed.FS
-
-var cpBoard = make(chan os.Signal, 1)
-var exitSignal = make(chan struct{})
 
 func main() {
 	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
@@ -28,6 +29,7 @@ func main() {
 	if err != nil {
 		log.Fatalln("Failed to get user home directory:", err)
 	}
+	// go systray.Run(onReady, onExit)
 
 	// Create an instance of the app structure
 	app := NewApp()
@@ -36,18 +38,11 @@ func main() {
 		log.Fatalln("Failed to create config directory:", err)
 	}
 	dbPath := filepath.Join(configPath, "clipboard_bucket.db")
+	log.Println("db path is ", dbPath)
 
 	clipboard, err := clip.NewClipboardManager(dbPath)
 	if err != nil {
 		log.Fatalln("Failed to initialize clipboard manager:", err)
-	}
-
-	go watchClipboard(clipboard)
-	select {
-	case <-exitSignal:
-		log.Println("Exiting due to clipboard init faliure ")
-		return
-	default:
 	}
 
 	// Create application with options
@@ -58,11 +53,16 @@ func main() {
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
+		// StartHidden:      true,
 		BackgroundColour: &options.RGBA{R: 27, G: 38, B: 54, A: 1},
 		OnStartup: func(ctx context.Context) {
 			app.startup(ctx)
 			clipboard.SetContext(ctx)
+
+			go watchClipboard(ctx, clipboard)
+			go listenForHotkey(ctx) 
 		},
+		OnBeforeClose: app.beforeClose,
 		Bind: []any{
 			app,
 			clipboard,
@@ -74,17 +74,45 @@ func main() {
 	}
 }
 
-func watchClipboard(cBoard *clip.ClipboardManager) {
+func watchClipboard(ctx context.Context, cBoard *clip.ClipboardManager) {
 	err := cb.Init()
 	if err != nil {
 		log.Println("error occured in ", err)
-		exitSignal <- struct{}{}
 		return
 	}
+
 	log.Println("Clipboard watcher initialized.")
-	ch := cb.Watch(context.Background(), cb.FmtText)
-	for data := range ch {
-		log.Println("new content detected ", string(data))
-		cBoard.Add(string(data))
+	board := cb.Watch(context.Background(), cb.FmtText)
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.Println("App is shutting down, stopping clipboard watcher.")
+			return
+
+		case data := <-board:
+			log.Println("new content detected ", string(data))
+			cBoard.Add(string(data))
+		}
 	}
+}
+
+
+func listenForHotkey(ctx context.Context) {
+    hk := hotkey.New([]hotkey.Modifier{hotkey.ModCtrl, hotkey.ModShift}, hotkey.KeyV)
+    err := hk.Register()
+    if err != nil {
+        log.Printf("Failed to register hotkey: %v", err)
+        return
+    }
+    log.Println("Global hotkey Ctrl+Alt+V registered")
+    for {
+        select {
+        case <-ctx.Done():
+            return
+        case <-hk.Keydown():
+            log.Println("Hotkey pressed: Ctrl+Alt+V")
+            runtime.Show(ctx)
+        }
+    }
 }

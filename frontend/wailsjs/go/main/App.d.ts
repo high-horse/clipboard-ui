@@ -4,4 +4,6 @@ import {context} from '../models';
 
 export function Greet(arg1:string):Promise<string>;
 
+export function Hide():Promise<void>;
+
 export function OnShutdown(arg1:context.Context):Promise<void>;

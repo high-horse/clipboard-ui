@@ -1,9 +1,10 @@
 <script lang="ts" setup>
 import { reactive, onMounted, onUnmounted, ref } from "vue";
-import { Greet } from "../../wailsjs/go/main/App";
+import { Greet, Hide } from "../../wailsjs/go/main/App";
 import { Add, GetAll } from "../../wailsjs/go/clip/ClipboardManager";
 import { QInput } from "quasar";
-import { EventsOn, EventsOff } from "../../wailsjs/runtime/runtime.js";
+import { EventsOn, EventsOff, WindowHide } from "../../wailsjs/runtime/runtime.js";
+import { CopiedContent } from "../type/types";
 
 const data = reactive({
     name: "",
@@ -28,18 +29,19 @@ const toggleDarkMode = () => {
     $q.dark.toggle();
 };
 
-const message = ref("");
+const message = ref<CopiedContent|null>(null);
 
-const messages = ref<string[]>([]);
+const messages = ref<CopiedContent[]>([]);
 
-EventsOn("new-content", (data: { content: string }) => {
+EventsOn("new-content", (data: { content: CopiedContent }) => {
     messages.value.unshift(data.content);
+    console.log("new cntent event ", data)
 });
 
 const getHistory = async() => {
   const response = await GetAll(); // response is array of strng
   // messages.value = response.reverse();
-  messages.value = response;
+  // messages.value = response;
   
   console.log(response);
 }
@@ -47,10 +49,18 @@ const getHistory = async() => {
 onMounted(async () => {
   await getHistory()
 })
+
+const hide = async() => {
+  // WindowHide();
+  await Hide();
+}
 </script>
 
 <template>
     <main>
+        <div>
+            <q-btn @click="hide()">Hide</q-btn>
+        </div>
         <div id="result" class="result">{{ data.resultText }}</div>
         <div class="row q-col-gutter-md q-mb-md">
             <div class="col-10">
@@ -80,7 +90,7 @@ onMounted(async () => {
                 <Card :content="msg" />
             </div> -->
             <div class="col-12" v-for="(msg, index) in messages" :key="index">
-              <Card :content="msg" />
+              <Card :content="msg.value" />
             </div>
         </div>
     </main>

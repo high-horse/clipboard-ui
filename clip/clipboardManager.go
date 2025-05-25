@@ -19,6 +19,14 @@ type ClipboardManager struct {
 	ctx context.Context
 }
 
+
+type CopiedContent struct {
+	Key   uint64 `json:"key"`
+	Value string `json:"value"`
+}
+
+
+
 const BUCKET = "clipboard_bucket"
 
 func NewClipboardManager(path string) (*ClipboardManager, error){
@@ -29,7 +37,8 @@ func NewClipboardManager(path string) (*ClipboardManager, error){
 
 	return &ClipboardManager{
 		db: db,
-		maxLen: 200,
+		// maxLen: 200,
+		maxLen: 5,
 	}, nil
 }
 
@@ -44,12 +53,6 @@ func (cm *ClipboardManager) GetContext() context.Context {
 
 
 func (cm *ClipboardManager) Add(content string) error {
-	if cm.ctx != nil {
-		runtime.EventsEmit(cm.ctx, "new-content", map[string]string{
-			"content": content,
-		})
-		log.Println("event emitted 'new-content'")
-	}
 
 	return cm.db.Update(func(tx *bbolt.Tx) error{
 		b, err := tx.CreateBucketIfNotExists([]byte(BUCKET))
@@ -63,6 +66,12 @@ func (cm *ClipboardManager) Add(content string) error {
 		if err := b.Put(key, []byte(content)); err != nil {
 			return err
 		}
+		runtime.EventsEmit(cm.ctx, "new-content", map[string]CopiedContent{
+			"content": {
+				Key: id,
+				Value: content,
+			},
+		})
 
 		// trim over max len
 		if b.Stats().KeyN > cm.maxLen {
@@ -78,6 +87,9 @@ func (cm *ClipboardManager) Add(content string) error {
 			})
 
 			for i := 0; i < len(keys)-cm.maxLen; i++ {
+				runtime.EventsEmit(cm.ctx, "remove-content", map[string]int64 {
+					"index": btoi(keys[i]) ,
+				})
 				_ = b.Delete(keys[i])
 			}
 
@@ -86,8 +98,11 @@ func (cm *ClipboardManager) Add(content string) error {
 	})
 }
 
-func (cm *ClipboardManager) GetAll() ([]string, error) {
+
+
+func (cm *ClipboardManager) GetAll() ([]CopiedContent, error) {
 	var results []string
+	var cpiedContents []CopiedContent
 
 	err := cm.db.View(func(tx *bbolt.Tx) error{
 		b := tx.Bucket([]byte(BUCKET))
@@ -99,15 +114,29 @@ func (cm *ClipboardManager) GetAll() ([]string, error) {
 
 		for k, v:=  c.Last(); k != nil; k,v = c.Prev() {
 			results = append(results, string(v))
+			cpiedContents = append(cpiedContents, CopiedContent{
+				Key:   binary.BigEndian.Uint64(k),
+				Value: string(v),
+			})
 		}
 		return nil
 	})
 
-	return results, err
+	log.Println("returning ", cpiedContents)
+	return cpiedContents, err
 }
 
 func itob(v uint64) []byte {
     b := make([]byte, 8)
     binary.BigEndian.PutUint64(b, v)
     return b
+}
+
+func btoi(v []byte) int64 {
+	if(len(v) < 8){
+		padded := make([]byte, 8)
+		copy(padded[8-len(v):], v)
+		v = padded
+	}
+	return int64(binary.BigEndian.Uint64(v))
 }

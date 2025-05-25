@@ -1,4 +1,4 @@
-dev:
+
 	wails dev -tags webkit2_41
 
 install-bolt-browser:	
