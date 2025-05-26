@@ -9,4 +9,6 @@ export function GetAll():Promise<Array<clip.CopiedContent>>;
 
 export function GetContext():Promise<context.Context>;
 
+export function Latest():Promise<clip.CopiedContent>;
+
 export function SetContext(arg1:context.Context):Promise<void>;

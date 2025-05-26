@@ -126,6 +126,21 @@ func (cm *ClipboardManager) GetAll() ([]CopiedContent, error) {
 	return cpiedContents, err
 }
 
+func (cm *ClipboardManager) Latest() (CopiedContent, error) {
+	var latest CopiedContent
+	err := cm.db.View(func(tx *bbolt.Tx) error{
+		b := tx.Bucket([]byte(BUCKET))
+		c := b.Cursor()
+		k,v := c.Last()
+		
+		latest.Key = binary.BigEndian.Uint64(k)
+		latest.Value = string(v)
+		return nil
+	})
+	
+	return latest, err
+}
+
 func itob(v uint64) []byte {
     b := make([]byte, 8)
     binary.BigEndian.PutUint64(b, v)

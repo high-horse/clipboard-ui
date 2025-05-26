@@ -14,6 +14,10 @@ export function GetContext() {
   return window['go']['clip']['ClipboardManager']['GetContext']();
 }
 
+export function Latest() {
+  return window['go']['clip']['ClipboardManager']['Latest']();
+}
+
 export function SetContext(arg1) {
   return window['go']['clip']['ClipboardManager']['SetContext'](arg1);
 }
