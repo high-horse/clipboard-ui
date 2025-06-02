@@ -17,7 +17,7 @@ import (
 	"golang.design/x/hotkey"
 	"fyne.io/systray"
 	"sync/atomic"
-	"time"
+	// "time"
 )
 
 //go:embed all:frontend/dist
@@ -25,6 +25,9 @@ var assets embed.FS
 
 //go:embed frontend/src/assets/images/logo-universal.png
 var trayIcon []byte
+
+var quitting atomic.Bool
+
 
 var (
 	clipboard *clip.ClipboardManager
@@ -59,8 +62,8 @@ func main() {
 	// Run Wails app on main thread (this is essential for proper window rendering)
 	err = wails.Run(&options.App{
 		Title:  "ui-clipboard",
-		Width:  1024,
-		Height: 768,
+		Width: 768, // 1024,
+		Height: 576, // 768,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
@@ -77,6 +80,9 @@ func main() {
 		},
 		OnBeforeClose: func(ctx context.Context) (prevent bool) {
 			// Don't actually close the app, just hide it
+			if quitting.Load() {
+		        return false // allow close during quit
+		    }
 			runtime.Hide(ctx)
 			return true // Prevent closing
 		},
@@ -93,7 +99,7 @@ func main() {
 
 func setupSystemTrayAlternative(ctx context.Context) {
     go func() {
-        var mLastClip *systray.MenuItem
+        // var mLastClip *systray.MenuItem
 
         systray.Run(func() {
             systray.SetIcon(trayIcon)
@@ -101,39 +107,40 @@ func setupSystemTrayAlternative(ctx context.Context) {
             systray.SetTooltip("G-Clipboard running")
 
             mShow := systray.AddMenuItem("Show", "Show window")
-            mLastClip = systray.AddMenuItem("Last: (empty)", "Show last clipboard item")
+            // mLastClip = systray.AddMenuItem("Last: (empty)", "Show last clipboard item")
             mClear := systray.AddMenuItem("Clear Clipboard", "Clear clipboard history")
             mQuit := systray.AddMenuItem("Quit", "Quit app")
 
-            // Update the tray menu/tooltip periodically
-            go func() {
-                for {
-                    v := lastCopiedValue.Load()
-                    text := "(empty)"
-                    if v != nil && v.(string) != "" {
-                        text = v.(string)
-                    }
-                    mLastClip.SetTitle("Last: " + text)
-                    systray.SetTooltip("Last copied: " + text)
-                    time.Sleep(500 * time.Millisecond)
-                }
-            }()
+            // // Update the tray menu/tooltip periodically
+            // go func() {
+            //     for {
+            //         v := lastCopiedValue.Load()
+            //         text := "(empty)"
+            //         if v != nil && v.(string) != "" {
+            //             text = v.(string)
+            //         }
+            //         mLastClip.SetTitle("Last: " + text)
+            //         systray.SetTooltip("Last copied: " + text)
+            //         time.Sleep(500 * time.Millisecond)
+            //     }
+            // }()
 
             for {
                 select {
                 case <-mShow.ClickedCh:
                     runtime.Show(ctx)
-                case <-mLastClip.ClickedCh:
-                    v := lastCopiedValue.Load()
-                    if v != nil {
-                        log.Println("Last clipboard item:", v.(string))
-                    }
+                // case <-mLastClip.ClickedCh:
+                //     v := lastCopiedValue.Load()
+                //     if v != nil {
+                //         log.Println("Last clipboard item:", v.(string))
+                //     }
                 case <-mClear.ClickedCh:
                     if clipboard != nil {
                         // clipboard.Clear() if implemented
                         log.Println("Clipboard cleared.")
                     }
                 case <-mQuit.ClickedCh:
+                	quitting.Store(true)
                     runtime.Quit(ctx)
                     return
                 }

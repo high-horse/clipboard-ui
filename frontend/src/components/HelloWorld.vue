@@ -1,26 +1,16 @@
 <script lang="ts" setup>
 import { reactive, onMounted, onUnmounted, ref } from "vue";
 import { Greet, Hide } from "../../wailsjs/go/main/App";
-import { Add, GetAll } from "../../wailsjs/go/clip/ClipboardManager";
-import { QInput } from "quasar";
-import { EventsOn, EventsOff, WindowHide } from "../../wailsjs/runtime/runtime.js";
+import { Add, GetAll, Remove, ClearHistory } from "../../wailsjs/go/clip/ClipboardManager";
+import { QInput, Notify } from "quasar";
+import {
+    EventsOn,
+    EventsOff,
+    WindowHide,
+} from "../../wailsjs/runtime/runtime.js";
+import { ClipboardSetText } from "../../wailsjs/runtime";
 import { CopiedContent } from "../type/types";
 
-const data = reactive({
-    name: "",
-    resultText: "Please enter your name below 👇",
-});
-
-function greet() {
-    Greet(data.name).then((result) => {
-        data.resultText = result;
-    });
-}
-
-function addToClipboard() {
-    Add(data.name);
-    data.name = "";
-}
 import { useQuasar } from "quasar";
 import Card from "./common/Card.vue";
 
@@ -29,68 +19,173 @@ const toggleDarkMode = () => {
     $q.dark.toggle();
 };
 
-const message = ref<CopiedContent|null>(null);
+const data = reactive({
+    name: "",
+    resultText: "Enter below to add new content to Clipboard 👇",
+});
+
+function greet() {
+    Greet(data.name).then((result) => {
+        data.resultText = result;
+    });
+}
+async function addToClipboard() {
+    try {
+        const success = await ClipboardSetText(data.name);
+        if (success) {
+            data.name = "";
+            await getHistory(); // Optional, if you're refreshing clipboard history
+        } else {
+            $q.notify({ message: "Failed to set clipboard", color: "red" });
+        }
+    } catch (err) {
+        $q.notify({ message: "Clipboard error: " + err, color: "red" });
+    }
+}
+
+async function handleDeleteClipboardContent(id: number) {
+    try {
+        await Remove(id);
+        getHistory();
+    } catch (err) {
+        const errorMessage = err instanceof Error  ? err.message : "Error deleting clipboard content.";
+        $q.notify({
+            message: errorMessage,
+            color: "red",
+        });
+    }
+}
+
+async function handleSetDefault(id: number) {
+    try {
+      // store locally
+      const tempItem = messages.value?.find(item => item.key === id) || null;
+      if (tempItem == null) {
+        return;
+      }
+      // delete
+      await handleDeleteClipboardContent(tempItem.key)
+      // add to clipoard again
+      await ClipboardSetText(tempItem.value);
+    } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : "Unexpected Error Occured.";
+        $q.notify({
+            message: errorMessage,
+            color: "red",
+        });
+    }
+}
+
+const message = ref<CopiedContent | null>(null);
 
 const messages = ref<CopiedContent[]>([]);
 
-EventsOn("new-content", (data: { content: CopiedContent }) => {
+EventsOn("new-content", async (data: { content: CopiedContent }) => {
+  try{
+    
+    console.log("new cntent event ", data);
     messages.value.unshift(data.content);
-    console.log("new cntent event ", data)
+    await getHistory();
+  }catch(err) {
+     await getHistory();
+  }
 });
 
-const getHistory = async() => {
-  const response = await GetAll(); // response is array of strng
-  // messages.value = response.reverse();
-  // messages.value = response;
-  
-  console.log(response);
+EventsOn("history-cleared", () => {
+  getHistory();
+})
+
+const getHistory = async () => {
+    const response = await GetAll(); // response is array of strng
+    // messages.value = response.reverse();
+    messages.value = response;
+
+    console.log("fetch history ", messages.value);
+};
+
+async function clearHistory() {
+  try{
+    await ClearHistory();
+  }catch(err) {
+    const errorMessage = err instanceof Error ? err.message : "Unexpected Error Occured.";
+    $q.notify({
+      message: errorMessage,
+      color: "red",
+    })
+  }
 }
 
 onMounted(async () => {
-  await getHistory()
-})
+    await getHistory();
+});
 
-const hide = async() => {
-  // WindowHide();
-  await Hide();
-}
+const hide = async () => {
+    // WindowHide();
+    await Hide();
+};
 </script>
 
 <template>
     <main>
-        <div>
+        <!-- <div>
             <q-btn @click="hide()">Hide</q-btn>
-        </div>
+        </div> -->
         <div id="result" class="result">{{ data.resultText }}</div>
-        <div class="row q-col-gutter-md q-mb-md">
-            <div class="col-10">
-                <q-input
-                    outlined
-                    dense
-                    label="New Clipboard Content"
-                    v-model="data.name"
-                    type="text"
-                />
+        <q-form @submit.prevent="addToClipboard">
+          <div class="row q-col-gutter-md q-mb-md">
+              <div class="col-1">
+                  <q-btn 
+                  icon="refresh"
+                  color="primary"
+                  @click="getHistory"
+                  />
+              </div>
+            <div class="col-9">
+              <q-input
+                outlined
+                dense
+                label="New Clipboard Content"
+                v-model="data.name"
+                type="text"
+              />
             </div>
-            <div class="col-2">
-                <!-- <q-btn color="primary" class="text-capitalize" @click="greet"
-                    >Greet</q-btn
-                > -->
-                <q-btn
-                    color="primary"
-                    class="text-capitalize"
-                    @click="addToClipboard"
-                    >Add To Clipboard</q-btn
-                >
+            <div class="col-1 flex items-center">
+              <q-btn
+                type="submit"
+                color="primary"
+                class="full-width text-capitalize"
+              >
+                  Submit
+              </q-btn>
             </div>
-        </div>
+            <div class="col-1">
+              <q-btn-dropdown color="primary" icon="menu" dense flat>
+                <q-list style="min-width: 150px">
+                  <q-item clickable v-close-popup @click="clearHistory">
+                    <q-item-section>Clear History</q-item-section>
+                  </q-item>
+                  <q-item clickable v-close-popup @click="hide">
+                    <q-item-section>Hide</q-item-section>
+                  </q-item>
+                </q-list>
+              </q-btn-dropdown>
+            </div>
+
+          </div>
+        </q-form>
+
 
         <div class="row q-col-gutter-md q-mb-md" id="content-body">
             <!-- <div class="col-12" v-for="(msg, index) in messages" key="index">
                 <Card :content="msg" />
             </div> -->
             <div class="col-12" v-for="(msg, index) in messages" :key="index">
-              <Card :content="msg.value" />
+                <Card
+                    :content="msg.value"
+                    :content-id="msg.key"
+                    @set-default="handleSetDefault"
+                    @delete-item="handleDeleteClipboardContent"
+                />
             </div>
         </div>
     </main>

@@ -19,13 +19,10 @@ type ClipboardManager struct {
 	ctx context.Context
 }
 
-
 type CopiedContent struct {
 	Key   uint64 `json:"key"`
 	Value string `json:"value"`
 }
-
-
 
 const BUCKET = "clipboard_bucket"
 
@@ -37,8 +34,8 @@ func NewClipboardManager(path string) (*ClipboardManager, error){
 
 	return &ClipboardManager{
 		db: db,
-		// maxLen: 200,
-		maxLen: 5,
+		maxLen: 200,
+		// maxLen: 3,
 	}, nil
 }
 
@@ -53,7 +50,7 @@ func (cm *ClipboardManager) GetContext() context.Context {
 
 
 func (cm *ClipboardManager) Add(content string) error {
-
+	
 	return cm.db.Update(func(tx *bbolt.Tx) error{
 		b, err := tx.CreateBucketIfNotExists([]byte(BUCKET))
 		if err != nil {
@@ -87,13 +84,16 @@ func (cm *ClipboardManager) Add(content string) error {
 			})
 
 			for i := 0; i < len(keys)-cm.maxLen; i++ {
-				runtime.EventsEmit(cm.ctx, "remove-content", map[string]int64 {
-					"index": btoi(keys[i]) ,
-				})
+				// runtime.EventsEmit(cm.ctx, "remove-content", map[string]int64 {
+				// 	"index": btoi(keys[i]) ,
+				// })
 				_ = b.Delete(keys[i])
 			}
 
 		}
+		runtime.EventsEmit(cm.ctx, "remove-content", map[string]int64 {
+			"index": 1,
+		})
 		return nil
 	})
 }
@@ -140,6 +140,38 @@ func (cm *ClipboardManager) Latest() (CopiedContent, error) {
 	
 	return latest, err
 }
+
+func (cm *ClipboardManager) Remove(id int) error {
+	delKey := itob(uint64(id))
+	err := cm.db.Update(func(tx *bbolt.Tx) error{
+		b := tx.Bucket([]byte(BUCKET))
+		if err := b.Delete(delKey); err != nil {
+			log.Printf("failed to delete key %v \n", err)
+			return err
+		}
+		return nil
+	})
+	return err
+}
+
+func (cm *ClipboardManager) ClearHistory() error{
+	return cm.db.Update(func(tx *bbolt.Tx) error{
+		err := tx.DeleteBucket([]byte(BUCKET))
+		if err != nil && err != bbolt.ErrBucketExists {
+			return err
+		}
+		
+		// recreate bucket
+		_, err = tx.CreateBucket([]byte(BUCKET))
+		if err != nil {
+			return err
+		}
+		
+		runtime.EventsEmit(cm.ctx, "history-cleared", nil)
+		return nil
+	})
+}
+
 
 func itob(v uint64) []byte {
     b := make([]byte, 8)

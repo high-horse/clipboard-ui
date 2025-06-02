@@ -5,10 +5,14 @@ import {context} from '../models';
 
 export function Add(arg1:string):Promise<void>;
 
+export function ClearHistory():Promise<void>;
+
 export function GetAll():Promise<Array<clip.CopiedContent>>;
 
 export function GetContext():Promise<context.Context>;
 
 export function Latest():Promise<clip.CopiedContent>;
+
+export function Remove(arg1:number):Promise<void>;
 
 export function SetContext(arg1:context.Context):Promise<void>;

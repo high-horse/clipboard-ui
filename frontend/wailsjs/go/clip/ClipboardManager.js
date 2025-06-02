@@ -6,6 +6,10 @@ export function Add(arg1) {
   return window['go']['clip']['ClipboardManager']['Add'](arg1);
 }
 
+export function ClearHistory() {
+  return window['go']['clip']['ClipboardManager']['ClearHistory']();
+}
+
 export function GetAll() {
   return window['go']['clip']['ClipboardManager']['GetAll']();
 }
@@ -16,6 +20,10 @@ export function GetContext() {
 
 export function Latest() {
   return window['go']['clip']['ClipboardManager']['Latest']();
+}
+
+export function Remove(arg1) {
+  return window['go']['clip']['ClipboardManager']['Remove'](arg1);
 }
 
 export function SetContext(arg1) {

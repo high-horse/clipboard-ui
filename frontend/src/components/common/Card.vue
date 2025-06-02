@@ -1,14 +1,19 @@
 <script setup lang="ts">
 defineProps<{
   content: String;
+  contentId: number
 }>();
+
 </script>
 
 <template>
 
 <q-card class="q-md-sm card-hover" bordered style="max-height: 100px; overflow-y: scroll;">
     <q-card-section>
-        <div class="text-body-1">{{content}}</div>
+      <div class="row justify-between items-center" @click.prevent="$emit('set-default', contentId)">
+        <div class="text-body-1">{{ content }} </div>
+        <q-btn icon="delete" color="red" flat round @click.prevent="$emit('delete-item', contentId)" />
+      </div>
     </q-card-section>
 </q-card>
 </template>
