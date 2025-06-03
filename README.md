@@ -2,6 +2,10 @@
 
 A cross-platform clipboard manager desktop application built with [Wails](https://wails.io/) (Go backend) and [Vue 3 + TypeScript](https://vuejs.org/) frontend.
 
+## Project Description
+
+Clipboard UI is a simple, cross-platform desktop application for managing your clipboard history. Built with Wails (Go backend) and Vue 3 + TypeScript, it provides a fast, modern interface and native system integration.
+
 ## Features
 
 - Modern UI with Vue 3 and Vite
